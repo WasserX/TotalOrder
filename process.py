@@ -1,4 +1,4 @@
-#Messages are in the form (<sender id>, <destination|None>, <ACK|DATA>)
+#Messages are in the form (<sender id>, <msgid>, <ACK|DATA>)
 
 
 class Process:
@@ -10,22 +10,21 @@ class Process:
         self.delivered = []
         self.to_deliver = []
         self.pids = pids
+        self.msgid = 0 #Counter for broadcasted msgids
     
-    def broadcast(self, mode='Multicast', dest=None):
+    def broadcast(self, mode='Multicast', order=None):
+        """Broadcast a msg. If Unicast mode, order of broadcast can be sent."""
         #Unicast
         if mode == 'Unicast':
-            for i in range(0,self.pids):
+            for i in order or range(0,self.pids):
                 if i != self.pid:
-                    self.outbox.append((self.pid, i, 'DATA'))
+                    self.outbox.append((i, (self.pid, self.msgid, 'DATA')))
         #Multicast
         else: 
-            self.outbox.append((self.pid, None, 'DATA'))
+            self.outbox.append((None, (self.pid, self.msgid, 'DATA')))
+            
+        self.msgid+= 1
             
     def receive(self):
-        a = 4
-        #print self.received    
-    
-                
-test = Process(3, 6)
-test.broadcast("Multicast")
-test.receive()
+        self.received = None
+            
