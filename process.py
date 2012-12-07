@@ -22,7 +22,8 @@ class Process:
             self.outbox.append((self.pid, None, 'DATA'))
             
     def receive(self):
-        print self.received    
+        a = 4
+        #print self.received    
     
                 
 test = Process(3, 6)
