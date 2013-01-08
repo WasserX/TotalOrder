@@ -74,6 +74,47 @@ class Simulator:
         self.print_results(self.nproc, turn, latency, (len(senders), turn))
 
 
+    def sim_bctree(self):
+        """Broadcasts a msg using unicast with tree algorithm."""
+        processes = []
+        delivery_order = []
+        for i in range(0, self.nproc):
+            processes.append(TreeProcess(i, processes, delivery_order))
+
+        #Sender of the packet
+        senders = [[random.randrange(self.nproc), 0]]
+        processes[senders[0][0]].send_new = True
+        
+        #Execute rounds
+        turn = 0
+        sending = True
+        while sending:
+            turn = turn +1
+            print '-- Round ' + str(turn) + ' --'
+
+            #Increase latencies
+            for sender in senders:
+                sender[1] = sender[1] + 1
+
+            for proc in processes:
+                #Execute round for each process
+                proc.do_round()
+
+            #Deliver msgs for next round
+            self.deliver_msgs(processes, 'UNICAST')
+
+            #Check if needs to continue executing
+            sending = False
+            for proc in processes:
+                for elem in proc.to_send:
+                    sending = True if elem[1] else sending
+                sending = True if proc.sent_msg else sending
+
+        latency = -1
+        for sender in senders:
+            latency = sender[1] if latency < sender[1] else latency
+
+        self.print_results(self.nproc, turn, latency, (len(senders), turn))
 
 
     def print_results(self, nproc, rounds, latency, throughput):
@@ -85,4 +126,4 @@ class Simulator:
         print '    Throughput: ' + str(throughput[0]) + '/' + str(throughput[1])
 
 test = Simulator()
-test.simulate('BCUNI', 4)
+test.simulate('BCTREE', 4)

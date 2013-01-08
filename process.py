@@ -26,7 +26,8 @@ class Process:
         del self.to_send[0][1][self.pid]
 
     def on_rcvd_msg(self):
-        pass
+        #print 'PID ' + str(self.pid) + ' received msg ' + str(self.rcvd_msg)
+        self.rcvd_msg = None
 
     def do_round(self):
         """Process a simple round"""
@@ -36,8 +37,28 @@ class Process:
             self.send_new = False
         
         if self.rcvd_msg:
-            #print 'PID ' + str(self.pid) + ' received msg ' + str(self.rcvd_msg)
             self.on_rcvd_msg()
-            self.rcvd_msg = None
-        
+
         self.send_msg() #If we have something to send, send it
+        
+
+class TreeProcess(Process):
+    def __init__(self, pid, others, delivery_order):
+        Process.__init__(self, pid, others)
+        self.delivery_order = delivery_order
+
+    def create_dest_list(self, msg):
+        for global_queue in self.delivery_order:
+            if global_queue[0] == msg[0] and global_queue[1] == msg[1]:
+                self.to_send.append([msg, global_queue[2]])
+                return
+        
+        dest_list = (msg[0], msg[1], [] + self.others)
+        del dest_list[2][self.pid]
+        
+        self.delivery_order.append(dest_list)
+        self.to_send.append([msg, self.delivery_order[len(self.delivery_order)-1][2]])
+        
+    def on_rcvd_msg(self):
+        self.create_dest_list(self.rcvd_msg)
+        self.rcvd_msg = None
