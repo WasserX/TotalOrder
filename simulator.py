@@ -16,6 +16,8 @@ class Simulator:
             self.sim_bcuni()
         elif mode == 'BCTREE':
             self.sim_bctree()
+        elif mode == 'BCPIPE':
+            self.sim_bcpipe()
         else:
             print 'Mode not recognized'
     
@@ -44,14 +46,10 @@ class Simulator:
         
         #Execute rounds
         turn = 0
-        sending = True
-        while sending:
+        working = True
+        while working:
             turn = turn +1
             print '-- Round ' + str(turn) + ' --'
-
-            #Increase latencies
-            for sender in senders:
-                sender[1] = sender[1] + 1
 
             for proc in processes:
                 #Execute round for each process
@@ -61,17 +59,20 @@ class Simulator:
             self.deliver_msgs(processes, 'UNICAST')
 
             #Check if needs to continue executing
-            sending = False
+            working = False
             for proc in processes:
-                for elem in proc.to_send:
-                    sending = True if elem[1] else sending
-                sending = True if proc.sent_msg else sending
+                working = True if proc.sent_msg or proc.rcvd_msg else working
+                
+            if working:
+                #Increase latencies
+                for sender in senders:
+                    sender[1] = sender[1] + 1
 
         latency = -1
         for sender in senders:
             latency = sender[1] if latency < sender[1] else latency
 
-        self.print_results(self.nproc, turn, latency, (len(senders), turn))
+        self.print_results(self.nproc, turn-1, latency, (len(senders), turn-1))
 
 
     def sim_bctree(self):
@@ -87,14 +88,10 @@ class Simulator:
         
         #Execute rounds
         turn = 0
-        sending = True
-        while sending:
+        working = True
+        while working:
             turn = turn +1
             print '-- Round ' + str(turn) + ' --'
-
-            #Increase latencies
-            for sender in senders:
-                sender[1] = sender[1] + 1
 
             for proc in processes:
                 #Execute round for each process
@@ -104,17 +101,61 @@ class Simulator:
             self.deliver_msgs(processes, 'UNICAST')
 
             #Check if needs to continue executing
-            sending = False
+            working = False
             for proc in processes:
-                for elem in proc.to_send:
-                    sending = True if elem[1] else sending
-                sending = True if proc.sent_msg else sending
+                working = True if proc.sent_msg or proc.rcvd_msg else working
+                
+            if working:
+                #Increase latencies
+                for sender in senders:
+                    sender[1] = sender[1] + 1
 
         latency = -1
         for sender in senders:
             latency = sender[1] if latency < sender[1] else latency
 
-        self.print_results(self.nproc, turn, latency, (len(senders), turn))
+        self.print_results(self.nproc, turn-1, latency, (len(senders), turn-1))
+
+
+    def sim_bcpipe(self):
+        """Broadcasts a msg using unicast with pipe algorithm."""
+        processes = []
+        for i in range(0, self.nproc):
+            processes.append(PipeProcess(i, processes))
+
+        #Sender of the packet
+        senders = [[random.randrange(self.nproc), 0]]
+        processes[senders[0][0]].send_new = True
+        
+        #Execute rounds
+        turn = 0
+        working = True
+        while working:
+            turn = turn +1
+            print '-- Round ' + str(turn) + ' --'
+
+            for proc in processes:
+                #Execute round for each process
+                proc.do_round()
+
+            #Deliver msgs for next round
+            self.deliver_msgs(processes, 'UNICAST')
+
+            #Check if needs to continue executing
+            working = False
+            for proc in processes:
+                working = True if proc.sent_msg or proc.rcvd_msg else working
+                
+            if working:
+                #Increase latencies
+                for sender in senders:
+                    sender[1] = sender[1] + 1
+
+        latency = -1
+        for sender in senders:
+            latency = sender[1] if latency < sender[1] else latency
+
+        self.print_results(self.nproc, turn-1, latency, (len(senders), turn-1))
 
 
     def print_results(self, nproc, rounds, latency, throughput):

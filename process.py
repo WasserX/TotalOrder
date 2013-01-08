@@ -35,6 +35,7 @@ class Process:
             self.create_dest_list((self.pid, self.msgcount, 'DATA'))
             self.msgcount = self.msgcount + 1
             self.send_new = False
+            
         
         if self.rcvd_msg:
             self.on_rcvd_msg()
@@ -61,4 +62,14 @@ class TreeProcess(Process):
         
     def on_rcvd_msg(self):
         self.create_dest_list(self.rcvd_msg)
+        self.rcvd_msg = None
+
+class PipeProcess(Process):
+    def create_dest_list(self, msg):
+        if (self.pid + 1) % len(self.others) != msg[0]:
+            self.to_send = [[msg, [self.others[(self.pid + 1) % len(self.others)]]]]
+    def on_rcvd_msg(self):
+        #print 'PID ' + str(self.pid) + ' received msg ' + str(self.rcvd_msg)
+        if self.rcvd_msg[0] != self.pid:
+            self.create_dest_list(self.rcvd_msg)
         self.rcvd_msg = None
