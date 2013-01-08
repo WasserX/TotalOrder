@@ -11,20 +11,28 @@ class Simulator:
         nproc defines the number of processes in the simulation"""
         
         self.nproc = nproc
-
+        self.processes = []
+        
         if mode == 'BCUNI':
-            self.sim_bcuni()
+            for i in range(0, self.nproc):
+               self.processes.append(Process(i, self.processes))
+            self.sim_broadcast()
         elif mode == 'BCTREE':
-            self.sim_bctree()
+            delivery_order = []
+            for i in range(0, self.nproc):
+                self.processes.append(TreeProcess(i, self.processes, delivery_order))
+            self.sim_broadcast()
         elif mode == 'BCPIPE':
-            self.sim_bcpipe()
+            for i in range(0, self.nproc):
+                self.processes.append(PipeProcess(i, self.processes))
+            self.sim_broadcast()
         else:
             print 'Mode not recognized'
     
-    def deliver_msgs(self, processes, mode):
+    def deliver_msgs(self, mode):
         """Simulates the msg transfer. If there is a collision a error will be
         reported. Essentially puts the msg of the sender in the destination."""
-        for proc in processes:
+        for proc in self.processes:
             if proc.sent_msg:
                 if proc.sent_msg[0].rcvd_msg:
                     print 'Collision, Aborting'
@@ -34,98 +42,12 @@ class Simulator:
                     proc.sent_msg = None
 
 
-    def sim_bcuni(self):
-        """Broadcasts a msg using unicast to all participants."""
-        processes = []
-        for i in range(0, self.nproc):
-            processes.append(Process(i, processes))
-
-        #Sender of the packet
-        senders = [[random.randrange(self.nproc), 0]]
-        processes[senders[0][0]].send_new = True
-        
-        #Execute rounds
-        turn = 0
-        working = True
-        while working:
-            turn = turn +1
-            print '-- Round ' + str(turn) + ' --'
-
-            for proc in processes:
-                #Execute round for each process
-                proc.do_round()
-
-            #Deliver msgs for next round
-            self.deliver_msgs(processes, 'UNICAST')
-
-            #Check if needs to continue executing
-            working = False
-            for proc in processes:
-                working = True if proc.sent_msg or proc.rcvd_msg else working
-                
-            if working:
-                #Increase latencies
-                for sender in senders:
-                    sender[1] = sender[1] + 1
-
-        latency = -1
-        for sender in senders:
-            latency = sender[1] if latency < sender[1] else latency
-
-        self.print_results(self.nproc, turn-1, latency, (len(senders), turn-1))
-
-
-    def sim_bctree(self):
-        """Broadcasts a msg using unicast with tree algorithm."""
-        processes = []
-        delivery_order = []
-        for i in range(0, self.nproc):
-            processes.append(TreeProcess(i, processes, delivery_order))
-
-        #Sender of the packet
-        senders = [[random.randrange(self.nproc), 0]]
-        processes[senders[0][0]].send_new = True
-        
-        #Execute rounds
-        turn = 0
-        working = True
-        while working:
-            turn = turn +1
-            print '-- Round ' + str(turn) + ' --'
-
-            for proc in processes:
-                #Execute round for each process
-                proc.do_round()
-
-            #Deliver msgs for next round
-            self.deliver_msgs(processes, 'UNICAST')
-
-            #Check if needs to continue executing
-            working = False
-            for proc in processes:
-                working = True if proc.sent_msg or proc.rcvd_msg else working
-                
-            if working:
-                #Increase latencies
-                for sender in senders:
-                    sender[1] = sender[1] + 1
-
-        latency = -1
-        for sender in senders:
-            latency = sender[1] if latency < sender[1] else latency
-
-        self.print_results(self.nproc, turn-1, latency, (len(senders), turn-1))
-
-
-    def sim_bcpipe(self):
+    def sim_broadcast(self):
         """Broadcasts a msg using unicast with pipe algorithm."""
-        processes = []
-        for i in range(0, self.nproc):
-            processes.append(PipeProcess(i, processes))
 
         #Sender of the packet
         senders = [[random.randrange(self.nproc), 0]]
-        processes[senders[0][0]].send_new = True
+        self.processes[senders[0][0]].send_new = True
         
         #Execute rounds
         turn = 0
@@ -134,16 +56,16 @@ class Simulator:
             turn = turn +1
             print '-- Round ' + str(turn) + ' --'
 
-            for proc in processes:
+            for proc in self.processes:
                 #Execute round for each process
                 proc.do_round()
 
             #Deliver msgs for next round
-            self.deliver_msgs(processes, 'UNICAST')
+            self.deliver_msgs('UNICAST')
 
             #Check if needs to continue executing
             working = False
-            for proc in processes:
+            for proc in self.processes:
                 working = True if proc.sent_msg or proc.rcvd_msg else working
                 
             if working:
@@ -167,4 +89,4 @@ class Simulator:
         print '    Throughput: ' + str(throughput[0]) + '/' + str(throughput[1])
 
 test = Simulator()
-test.simulate('BCTREE', 4)
+test.simulate('BCPIPE', 4)
