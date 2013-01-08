@@ -43,7 +43,7 @@ class Simulator:
 
 
     def sim_broadcast(self):
-        """Broadcasts a msg using unicast with pipe algorithm."""
+        """Broadcasts a msg without acks using the processes algorithm to spread"""
 
         #Sender of the packet
         senders = [[random.randrange(self.nproc), 0]]
