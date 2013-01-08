@@ -1,89 +1,88 @@
-from process import Process
+from process import *
+import random
 
 class Simulator:
-    def __init__(self, rounds, num_proc):
-        self.rounds = rounds
-        self.processes = []
+    def __init__(self):
+        self.nproc = 0
+
+    def simulate(self, mode, nproc):
+        """Simulates a broadcast or a Total Order Broadcast. Available modes are
+        'BCUNI', 'BCTREE', 'BCPIPE', 'TOLAT', 'TOTHROUGH'. 
+        nproc defines the number of processes in the simulation"""
         
-        for i in range(0, num_proc):
-            self.processes.append(Process(i, num_proc))
-            
+        self.nproc = nproc
+
+        if mode == 'BCUNI':
+            self.sim_bcuni()
+        elif mode == 'BCTREE':
+            self.sim_bctree()
+        else:
+            print 'Mode not recognized'
     
-    def simulate(self, mode):
-        """simulates sending of msgs. Mode can be 'latency', 'throughput'"""
-        if mode == 'latency 1':
-            self._sim_latency_1_1sender()
-        elif mode == 'latency 3':
-            self._sim_latency_3_1sender()
-        elif mode == 'pipeline':
-            self._sim_pipeline()
-        elif mode == 'throughput':
-            self._sim_throughput()
-    
-    def _sim_latency_1_1sender(self):
-        for turn in range(0,self.rounds):
-            #Process msgs received in previous round
-            for proc in self.processes:
-                proc.receive()
-            
-            #Put new data msgs in outbox
-            if turn % 1 == 0: #Latency for one msg
-                self.processes[0].broadcast("Multicast")
-                
-            self._dist_round_msgs()
-            self._print_turn(turn)
-            
-            
-    def _sim_latency_3_1sender(self):
-        for turn in range(0,self.rounds):
-            #Process msgs received in previous round
-            for proc in self.processes:
-                proc.receive()
-        
-            #Put new data msgs in outbox
-            if turn % 3 == 0: #Latency for one msg
-                self.processes[0].broadcast("Unicast")
-             
-            self._dist_round_msgs()
-            self._print_turn(turn)
-            
-    def _sim_pipeline(self):
-        for turn in range(0,self.rounds):
-            #Process msgs received in previous round
-            for proc in self.processes:
-                proc.receive()
-        
-            #Put new data msgs in outbox
-            #In this case we use a circular list to send each round
-            if turn % 3 == 0: #Latency for one msg
-                for proc in self.processes[:-1]:
-                    proc.broadcast("Unicast", range(proc.pid+1, len(self.processes)) + range(0, proc.pid))
-             
-            self._dist_round_msgs()
-            self._print_turn(turn)
-            
-        
-    def _dist_round_msgs(self):
-        for proc in self.processes:
-            if proc.outbox:
-                dest, msg = proc.outbox.pop()
-                if dest == None: #Broadcast in Multicast
-                    for p in self.processes:
-                        p.received = msg
-                elif dest != None and not self.processes[dest].received:
-                    self.processes[dest].received = msg
-                else: #There was a collision (should not happen). Dest has received a message this round
-                    print "Collision detected from " + str(proc.pid) + " to " + str(dest) + ". Destination already has " + str(self.processes[dest].received)
+    def deliver_msgs(self, processes, mode):
+        """Simulates the msg transfer. If there is a collision a error will be
+        reported. Essentially puts the msg of the sender in the destination."""
+        for proc in processes:
+            if proc.sent_msg:
+                if proc.sent_msg[0].rcvd_msg:
+                    print 'Collision, Aborting'
+                    return
+                else:
+                    proc.sent_msg[0].rcvd_msg = proc.sent_msg[1]
+                    proc.sent_msg = None
 
 
-    def _print_turn(self, turn):
-        """Print a nice output to follow the sending of messages each round"""
-        
-        print "Turn: " + str(turn)
-        print "<PID>" + "\t" + "Message Received (Sender, MSGID, Type)"
-        for i in self.processes:
-            print str(i.pid) + "\t" + str(i.received)        
-        print ""
+    def sim_bcuni(self):
+        """Broadcasts a msg using unicast to all participants."""
+        processes = []
+        for i in range(0, self.nproc):
+            processes.append(Process(i, processes))
 
-sim = Simulator(3, 4)
-sim.simulate('pipeline')
+        #Sender of the packet
+        senders = [[random.randrange(self.nproc), 0]]
+        processes[senders[0][0]].send_new = True
+        
+        #Execute rounds
+        turn = 0
+        sending = True
+        while sending:
+            turn = turn +1
+            print '-- Round ' + str(turn) + ' --'
+
+            #Increase latencies
+            for sender in senders:
+                sender[1] = sender[1] + 1
+
+            for proc in processes:
+                #Execute round for each process
+                proc.do_round()
+
+            #Deliver msgs for next round
+            self.deliver_msgs(processes, 'UNICAST')
+
+            #Check if needs to continue executing
+            sending = False
+            for proc in processes:
+                for elem in proc.to_send:
+                    sending = True if elem[1] else sending
+                sending = True if proc.sent_msg else sending
+
+        latency = -1
+        for sender in senders:
+            latency = sender[1] if latency < sender[1] else latency
+
+        self.print_results(self.nproc, turn, latency, (len(senders), turn))
+
+
+
+
+    def print_results(self, nproc, rounds, latency, throughput):
+        print '-- Simulation Ended --'
+        print 'Results:'
+        print '    Nb of Processes: ' + str(nproc)
+        print '    Rounds: ' + str(rounds)
+        print '    Latency: ' + str(latency)
+        print '    Throughput: ' + str(throughput[0]) + '/' + str(throughput[1])
+
+test = Simulator()
+test.simulate('BCUNI', 4)
