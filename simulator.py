@@ -12,34 +12,30 @@ class Simulator:
         
         self.nproc = nproc
         self.processes = []
+        self.send_queue = []
         
         if mode == 'BCUNI':
             for i in range(0, self.nproc):
-               self.processes.append(Process(i, self.processes))
+               self.processes.append(Process(i, self.processes, self.send_queue))
             self.sim_broadcast()
         elif mode == 'BCTREE':
-            delivery_order = []
+            sending_order = []
             for i in range(0, self.nproc):
-                self.processes.append(TreeProcess(i, self.processes, delivery_order))
+                self.processes.append(TreeProcess(i, self.processes, self.send_queue, sending_order))
             self.sim_broadcast()
         elif mode == 'BCPIPE':
             for i in range(0, self.nproc):
-                self.processes.append(PipeProcess(i, self.processes))
+                self.processes.append(PipeProcess(i, self.processes, self.send_queue))
             self.sim_broadcast()
         else:
             print 'Mode not recognized'
     
     def deliver_msgs(self, mode):
-        """Simulates the msg transfer. If there is a collision a error will be
-        reported. Essentially puts the msg of the sender in the destination."""
-        for proc in self.processes:
-            if proc.sent_msg:
-                if proc.sent_msg[0].rcvd_msg:
-                    print 'Collision, Aborting'
-                    return
-                else:
-                    proc.sent_msg[0].rcvd_msg = proc.sent_msg[1]
-                    proc.sent_msg = None
+        """Simulates the msg transfer. Essentially puts the msg of the sender in the destination."""
+        for sender, to, msg in self.send_queue:
+            to.to_receive.append(msg)
+            
+        del self.send_queue[:]
 
 
     def sim_broadcast(self):
@@ -47,7 +43,7 @@ class Simulator:
 
         #Sender of the packet
         senders = [[random.randrange(self.nproc), 0]]
-        self.processes[senders[0][0]].send_new = True
+        self.processes[senders[0][0]].send_new = True #Set flag to tell sender to create new msg
         
         #Execute rounds
         turn = 0
@@ -66,7 +62,7 @@ class Simulator:
             #Check if needs to continue executing
             working = False
             for proc in self.processes:
-                working = True if proc.sent_msg or proc.rcvd_msg else working
+                working = True if proc.to_send or proc.to_receive else working
                 
             if working:
                 #Increase latencies
@@ -89,4 +85,4 @@ class Simulator:
         print '    Throughput: ' + str(throughput[0]) + '/' + str(throughput[1])
 
 test = Simulator()
-test.simulate('BCPIPE', 4)
+test.simulate('BCTREE', 4)

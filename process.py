@@ -1,75 +1,85 @@
 class Process:
-    def __init__(self, pid, others):
+    def __init__(self, pid, others, send_queue):
         self.pid = pid
         self.others = others
         self.send_new = False #Flag to tell if needs to send a new msg in the current round
-        self.sent_msg = None #Message that will be delivered next round
-        self.rcvd_msg = None #Message that was sent to us last round
-        self.to_send = [] #Remaining processes that need to receive a msg
-        self.msgcount = 0
+        
+        #Message to send in a round must be added to this queue.(Only one accepted per round).
+        #Format: (emitter, to, msg) emitter can be different than original sender
+        self.send_queue = send_queue
+        
+        self.to_receive = [] #Queue of messages that need to be processed. One message will be processed per round
+        self.to_send = [] #Remaining msgs that need to be sent. Format: [(msg, to)]
+        #TODO: Change clock to decimal with pid
+        self.clock = 0 
 
     def send_msg(self):
         """Sends a msg that is in the sending queue"""
-        if self.sent_msg:
-            return #If we have already sent a msg. Just return.
-        for elem in self.to_send:
-            if elem[1]:
-                dest = elem[1].pop()
-                self.sent_msg = (dest, elem[0])
-                print 'PID ' + str(self.pid) + ' sent msg ' + str(elem[0]) + ' to ' + str(dest.pid)
-                return
+        if self.to_send:
+            msg, to = self.to_send.pop(0)
+            packet = (self.pid, to, msg)
+            
+            self.send_queue.append(packet)
+            print 'PID ' + str(self.pid) + ' sent msg ' + str(msg) + ' to ' + str(to.pid)
+        return
 
     def create_dest_list(self, msg):
         """This method will change according to policy. Establishes the order
         that will be used to broadcast the msg"""
-        self.to_send = [[msg, [] + self.others]]
-        del self.to_send[0][1][self.pid]
+        for proc in self.others:
+            if proc != self:
+                self.to_send.append((msg, proc))
 
-    def on_rcvd_msg(self):
-        #print 'PID ' + str(self.pid) + ' received msg ' + str(self.rcvd_msg)
-        self.rcvd_msg = None
+    def on_msg(self):
+        self.to_receive.pop(0)
 
     def do_round(self):
         """Process a simple round"""
-        if self.send_new:
-            self.create_dest_list((self.pid, self.msgcount, 'DATA'))
-            self.msgcount = self.msgcount + 1
+        if self.send_new and not self.to_send:
+            self.create_dest_list((self.pid, self.clock, 'DATA'))
+            self.clock = self.clock + 1
             self.send_new = False
             
-        
-        if self.rcvd_msg:
-            self.on_rcvd_msg()
+        if self.to_receive:
+            self.on_msg()
 
-        self.send_msg() #If we have something to send, send it
+        self.send_msg() #If we have something to send in the queue, send it
         
 
 class TreeProcess(Process):
-    def __init__(self, pid, others, delivery_order):
-        Process.__init__(self, pid, others)
-        self.delivery_order = delivery_order
+    def __init__(self, pid, others, send_queue, sending_order):
+        Process.__init__(self, pid, others, send_queue)
+        self.sending_order = sending_order
 
     def create_dest_list(self, msg):
-        for global_queue in self.delivery_order:
-            if global_queue[0] == msg[0] and global_queue[1] == msg[1]:
-                self.to_send.append([msg, global_queue[2]])
-                return
+        #Check if remaining process list already exists
+        try:
+            index = self.sending_order.index(msg[1])
+            self.to_send = self.sending_order[index+1]
+            return
+        except ValueError: #If it does not exists, create a list and make it global
+            self.to_send = []
+            for proc in self.others:
+                if proc != self:
+                    self.to_send.append((msg, proc))
+            
+            self.sending_order.append(self.clock)
+            self.sending_order.append(self.to_send)
+             
+    def on_msg(self):
+        self.create_dest_list(self.to_receive.pop(0))
         
-        dest_list = (msg[0], msg[1], [] + self.others)
-        del dest_list[2][self.pid]
-        
-        self.delivery_order.append(dest_list)
-        self.to_send.append([msg, self.delivery_order[len(self.delivery_order)-1][2]])
-        
-    def on_rcvd_msg(self):
-        self.create_dest_list(self.rcvd_msg)
-        self.rcvd_msg = None
 
 class PipeProcess(Process):
     def create_dest_list(self, msg):
-        if (self.pid + 1) % len(self.others) != msg[0]:
-            self.to_send = [[msg, [self.others[(self.pid + 1) % len(self.others)]]]]
-    def on_rcvd_msg(self):
-        #print 'PID ' + str(self.pid) + ' received msg ' + str(self.rcvd_msg)
-        if self.rcvd_msg[0] != self.pid:
-            self.create_dest_list(self.rcvd_msg)
-        self.rcvd_msg = None
+        """In pipeline, only send msg to next process. Circular list. If dest is the sender, stop."""
+        normalized_dest = (self.pid + 1) % len(self.others)
+        if normalized_dest != msg[0]:
+            self.to_send.append((msg, self.others[normalized_dest]))
+
+    def on_msg(self):
+        """When a msg is received. Send it to the next process."""
+        msg = self.to_receive.pop(0)
+        pid, clock, content = msg
+        if pid != self.pid:
+            self.create_dest_list(msg)
