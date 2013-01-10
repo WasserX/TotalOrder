@@ -83,7 +83,60 @@ class PipeProcess(Process):
 
     def on_msg(self):
         """When a msg is received. Send it to the next process."""
-        msg = self.to_receive.pop(0)
-        pid, clock, content = msg
+        clock, pid, content= self.to_receive.pop(0)
+        
         if pid != self.pid:
             self.create_dest_list(msg)
+            
+            
+class TOProcess(Process):
+    def __init__(self, pid, n_proc, others, send_queue):
+        Process.__init__(self, pid, n_proc, others, send_queue)
+        self.to_ack = [] #Messages received but that did not get all the acks yet. Format: [(msg, [acks_rcvd])]
+        
+    def on_msg(self):
+        msg = self.to_receive.pop(0)
+        rcvd_clock, rcvd_pid, content = msg
+        self.clock = max(self.clock, rcvd_clock) +1
+        
+        if content == 'DATA':
+            self.create_dest_list((rcvd_clock, self.pid, 'ACK'))
+            self.ack_msg(msg)
+        else:
+            self.ack_msg(msg)
+        
+    def create_dest_list(self, msg):
+        clock, pid, content = msg
+        if content == 'DATA':
+            self.to_ack.append((msg, [pid]))
+            
+        for proc in self.others:
+            if proc != self:
+                self.to_send.append((msg, proc))
+        
+    
+    def deliver(self, msg):
+        print 'Message ' + str(msg) + ' Delivered in ' + str(self.pid) 
+    
+    def ack_msg(self, msg):
+        """Received an acknowledge of msg sent by process pid. Add it to list of ackd msgs.
+        If msg has been acknowledged by everyone, deliver it."""
+        #If the list exists, add ack to list, otherwise create the list.
+        #In the
+        clock, pid, content = msg
+        
+        for ack_msg, ackd in self.to_ack:
+            ack_clock, ack_pid, ack_content = ack_msg
+            if ack_clock == clock:
+                ackd.append(pid)
+                return
+           
+        self.to_ack.append((msg, [pid]))
+        self.to_ack.sort()
+        
+        #Test if acknowledged by everyone, in that case deliver it
+        msg, acks = self.to_ack[0]
+        if len(acks) == self.nproc:
+            self.to_ack.pop(0)
+            self.deliver(msg)
+        
