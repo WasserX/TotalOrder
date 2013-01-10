@@ -52,7 +52,9 @@ class Simulator:
 
         #Execute rounds
         turn = 0
-        msg_latencies = []
+        latency = -1
+        msg_latencies = {}
+        deliveries_to_stop = self.nproc*len(self.new_msgs_schedule)
         working = True
         while working:
             turn = turn +1
@@ -62,7 +64,7 @@ class Simulator:
             for msg_turn, pid in self.new_msgs_schedule:
                 if msg_turn == turn:
                     self.processes[pid].send_new = True #Set flag to tell sender to create new msg
-                    msg_latencies.append([self.processes[pid].clock, 0])
+                    msg_latencies[self.processes[pid].clock] = 0
 
             for proc in self.processes:
                 #Execute round for each process
@@ -71,24 +73,36 @@ class Simulator:
             #Deliver msgs for next round
             self.deliver_msgs('UNICAST')
 
-            #Check if needs to continue executing
             delivered_msgs = 0
+            eq_clocks = True
+            pre_clock = None
+            counter_clocks = 0
+            #Check if needs to continue executing
+            #Count number of delivered msgs and test if a msg has been delivered to all processes
             for proc in self.processes:
                 delivered_msgs += len(proc.delivered)
+                proc.delivered.sort()
+                if proc.delivered:
+                    pre_clock = pre_clock or proc.delivered[0]
+                    if pre_clock == proc.delivered[0]:
+                        counter_clocks += 1
             
+            #If a msg has been delivered to all processes, test if worst latency and remove from list
+            if counter_clocks == self.nproc:
+                latency = max(msg_latencies[pre_clock], latency)
+                del msg_latencies[pre_clock]
+                for proc in self.processes:
+                    del proc.delivered[0]
+
             #Stop working when nb of delivered msgs is equal to all sent msgs.
-            working = True if delivered_msgs != self.nproc*len(self.new_msgs_schedule) else False
+            working = True if delivered_msgs !=  deliveries_to_stop else False
                 
             if working:
                 #Increase latencies
-                for latency in msg_latencies:
-                    latency[1] += 1
+                for k in msg_latencies:
+                    msg_latencies[k] += 1
 
-        biggest_latency = -1
-        for latency in msg_latencies:
-            biggest_latency = latency[1] if biggest_latency < latency[1] else biggest_latency
-
-        self.print_results(self.nproc, turn-1, biggest_latency, (len(msg_latencies), turn-1))
+        self.print_results(self.nproc, turn-1, latency, (len(self.new_msgs_schedule), turn-1))
 
 
     def print_results(self, nproc, rounds, latency, throughput):
