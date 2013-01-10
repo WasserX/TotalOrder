@@ -97,18 +97,23 @@ class TOProcess(Process):
     def on_msg(self):
         msg = self.to_receive.pop(0)
         rcvd_clock, rcvd_pid, content = msg
+        
+        print 'Process ' + str(self.pid) + ' received msg: ' + str(msg)
+        
         self.clock = max(self.clock, rcvd_clock) +1
         
-        if content == 'DATA':
-            self.create_dest_list((rcvd_clock, self.pid, 'ACK'))
-            self.ack_msg(msg)
-        else:
-            self.ack_msg(msg)
+        if content != 'ACK':
+            ack_packet = (rcvd_clock, self.pid, 'ACK')
+            self.create_dest_list(ack_packet)
+            self.ack_msg(ack_packet)
+        
+        self.ack_msg(msg)
         
     def create_dest_list(self, msg):
         clock, pid, content = msg
-        if content == 'DATA':
-            self.to_ack.append((msg, [pid]))
+        
+        if content != 'ACK':
+            self.ack_msg(msg)
             
         for proc in self.others:
             if proc != self:
@@ -122,30 +127,27 @@ class TOProcess(Process):
         """Received an acknowledge of msg sent by process pid. Add it to list of ackd msgs.
         If msg has been acknowledged by everyone, deliver it."""
         #If the list exists, add ack to list, otherwise create the list.
-        #In the
         clock, pid, content = msg
         ackd_msg_exists = False
-        
 
         for i, element in enumerate(self.to_ack):
             ack_clock, ack_pid, ack_content = element[0]
             ack_proc_list = element[1]
+
             if ack_clock == clock:
-                if content == 'DATA':
-                    print self.to_ack[i]
+                if content != 'ACK':
                     self.to_ack.pop(i)
-                    self.to_ack.insert(i, ((ack_clock, ack_pid, 'DATA'), ack_proc_list))
-                    print self.to_ack[i]
+                    self.to_ack.insert(i, ((clock, pid, content), ack_proc_list))
                 ack_proc_list.append(pid)
                 ackd_msg_exists = True
                 
         if not ackd_msg_exists:   
             self.to_ack.append((msg, [pid]))
             self.to_ack.sort()
-        else:
+
         #Test if acknowledged by everyone, in that case deliver it
-            msg, acks = self.to_ack[0]
-            if len(acks) == self.nproc:
-                self.to_ack.pop(0)
-                self.deliver(msg)
+        msg, acks = self.to_ack[0]
+        if len(acks) == self.nproc:
+            self.to_ack.pop(0)
+            self.deliver(msg)
         
