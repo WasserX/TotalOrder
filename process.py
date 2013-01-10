@@ -4,7 +4,7 @@ class Process:
     def __init__(self, pid, n_proc, others, send_queue):
         self.pid = pid
         self.others = others
-        self.nproc = nproc
+        self.nproc = n_proc
         self.send_new = False #Flag to tell if needs to send a new msg in the current round
         
         #Message to send in a round must be added to this queue.(Only one accepted per round).
@@ -23,6 +23,8 @@ class Process:
             
             self.send_queue.append(packet)
             print 'PID ' + str(self.pid) + ' sent msg ' + str(msg) + ' to ' + str(to.pid)
+            
+            self.clock = self.clock + 1
         return
 
     def create_dest_list(self, msg):
@@ -33,13 +35,13 @@ class Process:
                 self.to_send.append((msg, proc))
 
     def on_msg(self):
-        self.to_receive.pop(0)
+        rcvd_clock, rcvd_pid, content = self.to_receive.pop(0)
+        self.clock = max(self.clock, rcvd_clock) +1
 
     def do_round(self):
         """Process a simple round"""
         if self.send_new and not self.to_send:
-            self.create_dest_list((self.pid, self.clock, 'DATA'))
-            self.clock = self.clock + 1
+            self.create_dest_list((self.clock, self.pid, 'DATA'))
             self.send_new = False
             
         if self.to_receive:
