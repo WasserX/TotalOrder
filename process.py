@@ -13,7 +13,7 @@ class Process:
         
         self.to_receive = [] #Queue of messages that need to be processed. One message will be processed per round
         self.to_send = [] #Remaining msgs that need to be sent. Format: [(msg, to)]
-        self.quant_delivered = 0 #Counts delivered msgs. Used to know when to finish simulation. Not used in algorithms.
+        self.delivered = [] #Keeps track of delivered msgs. Used to know when to finish simulation. Not used in algorithms. Format: [clock,...]
         self.clock = 0 + pid / n_proc
 
     def send_msg(self):
@@ -31,7 +31,7 @@ class Process:
     def create_dest_list(self, msg):
         """This method will change according to policy. Establishes the order
         that will be used to broadcast the msg"""
-        self.quant_delivered += 1
+        self.delivered.append(msg[0])
         for proc in self.others:
             if proc != self:
                 self.to_send.append((msg, proc))
@@ -39,7 +39,7 @@ class Process:
     def on_msg(self):
         msg = self.to_receive.pop(0)
         rcvd_clock, rcvd_pid, content = msg
-        self.quant_delivered += 1
+        self.delivered.append(msg[0])
         self.clock = max(self.clock, rcvd_clock) +1
         
         print 'Process ' + str(self.pid) + ' received msg: ' + str(msg)
@@ -71,7 +71,7 @@ class TreeProcess(Process):
             self.to_send = self.sending_order[index+1]
             return
         except ValueError: #If it does not exists, create a list and make it global
-            self.quant_delivered += 1
+            self.delivered.append(msg[0])
             self.to_send = []
             for proc in self.others:
                 if proc != self:
@@ -83,7 +83,7 @@ class TreeProcess(Process):
     def on_msg(self):
         msg = self.to_receive.pop(0)
         self.create_dest_list(msg)
-        self.quant_delivered += 1
+        self.delivered.append(msg[0])
         
         print 'Process ' + str(self.pid) + ' received msg: ' + str(msg)
 
@@ -93,7 +93,7 @@ class PipeProcess(Process):
         """In pipeline, only send msg to next process. Circular list. If dest is the sender, stop."""
         clock, pid, content = msg
         if pid == self.pid:
-            self.quant_delivered += 1
+            self.delivered.append(msg[0])
         normalized_dest = (self.pid + 1) % self.nproc
         if normalized_dest != msg[0]:
             self.to_send.append((msg, self.others[normalized_dest]))
@@ -102,7 +102,7 @@ class PipeProcess(Process):
         """When a msg is received. Send it to the next process."""
         msg = self.to_receive.pop(0)
         clock, pid, content = msg
-        self.quant_delivered += 1
+        self.delivered.append(msg[0])
     
         print 'Process ' + str(self.pid) + ' received msg: ' + str(msg)
 
@@ -152,7 +152,7 @@ class TOProcess(Process):
     
     def deliver(self, msg):
         print 'Message ' + str(msg) + ' Delivered in ' + str(self.pid)
-        self.quant_delivered += 1
+        self.delivered.append(msg[0])
 
     
     def ack_msg(self, msg):

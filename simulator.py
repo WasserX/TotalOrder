@@ -74,7 +74,7 @@ class Simulator:
             #Check if needs to continue executing
             delivered_msgs = 0
             for proc in self.processes:
-                delivered_msgs += proc.quant_delivered
+                delivered_msgs += len(proc.delivered)
             
             #Stop working when nb of delivered msgs is equal to all sent msgs.
             working = True if delivered_msgs != self.nproc*len(self.new_msgs_schedule) else False
@@ -82,7 +82,7 @@ class Simulator:
             if working:
                 #Increase latencies
                 for latency in msg_latencies:
-                    latency[1] = latency[1] + 1
+                    latency[1] += 1
 
         biggest_latency = -1
         for latency in msg_latencies:
