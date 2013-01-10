@@ -90,6 +90,7 @@ class Simulator:
             if counter_clocks == self.nproc:
                 latency = max(msg_latencies[pre_clock], latency)
                 del msg_latencies[pre_clock]
+                deliveries_to_stop -= counter_clocks #When a msg was completely delivered, make the stop flag smaller
                 for proc in self.processes:
                     del proc.delivered[0]
 
