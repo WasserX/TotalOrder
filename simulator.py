@@ -17,16 +17,16 @@ class Simulator:
         
         if mode == 'BCUNI':
             for i in range(0, self.nproc):
-               self.processes.append(Process(i, self.processes, self.send_queue))
+               self.processes.append(Process(i, self.nproc, self.processes, self.send_queue))
             self.sim_broadcast()
         elif mode == 'BCTREE':
             sending_order = []
             for i in range(0, self.nproc):
-                self.processes.append(TreeProcess(i, self.processes, self.send_queue, sending_order))
+                self.processes.append(TreeProcess(i, self.nproc, self.processes, self.send_queue, sending_order))
             self.sim_broadcast()
         elif mode == 'BCPIPE':
             for i in range(0, self.nproc):
-                self.processes.append(PipeProcess(i, self.processes, self.send_queue))
+                self.processes.append(PipeProcess(i, self.nproc, self.processes, self.send_queue))
             self.sim_broadcast()
         else:
             print 'Mode not recognized'

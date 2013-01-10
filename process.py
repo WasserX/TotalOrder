@@ -1,5 +1,7 @@
+from __future__ import division
+
 class Process:
-    def __init__(self, pid, others, send_queue):
+    def __init__(self, pid, n_proc, others, send_queue):
         self.pid = pid
         self.others = others
         self.send_new = False #Flag to tell if needs to send a new msg in the current round
@@ -10,8 +12,7 @@ class Process:
         
         self.to_receive = [] #Queue of messages that need to be processed. One message will be processed per round
         self.to_send = [] #Remaining msgs that need to be sent. Format: [(msg, to)]
-        #TODO: Change clock to decimal with pid
-        self.clock = 0 
+        self.clock = 0 + pid / n_proc
 
     def send_msg(self):
         """Sends a msg that is in the sending queue"""
@@ -47,8 +48,8 @@ class Process:
         
 
 class TreeProcess(Process):
-    def __init__(self, pid, others, send_queue, sending_order):
-        Process.__init__(self, pid, others, send_queue)
+    def __init__(self, pid, n_proc, others, send_queue, sending_order):
+        Process.__init__(self, pid, n_proc, others, send_queue)
         self.sending_order = sending_order
 
     def create_dest_list(self, msg):
