@@ -22,7 +22,7 @@ class Process:
             packet = (self.pid, to, msg)
             
             self.send_queue.append(packet)
-            print 'PID ' + str(self.pid) + ' sent msg ' + str(msg) + ' to ' + str(to.pid)
+            #print 'PID ' + str(self.pid) + ' sent msg ' + str(msg) + ' to ' + str(to.pid)
             
             self.clock = self.clock + 1
         return
@@ -40,7 +40,7 @@ class Process:
 
     def do_round(self):
         """Process a simple round"""
-        if self.send_new and not self.to_send:
+        if self.send_new:
             self.create_dest_list((self.clock, self.pid, 'DATA'))
             self.send_new = False
             
@@ -115,10 +115,19 @@ class TOProcess(Process):
         if content != 'ACK':
             self.ack_msg(msg)
             
+        new_to_send = []
         for proc in self.others:
             if proc != self:
-                self.to_send.append((msg, proc))
+                new_to_send.append((msg, proc))
         
+        for i, packet in enumerate(self.to_send):
+            pack_msg, proc = packet
+            if pack_msg[0] > clock:
+                self.to_send[i:i] = new_to_send
+                return
+        
+        self.to_send.extend(new_to_send)
+                
     
     def deliver(self, msg):
         print 'Message ' + str(msg) + ' Delivered in ' + str(self.pid) 
