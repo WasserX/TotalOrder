@@ -7,20 +7,20 @@ class Simulator:
 
     def simulate(self, mode, nproc, new_msgs_schedule):
         """Simulates a broadcast or a Total Order Broadcast. Available modes are
-        'BCUNI', 'BCTREE', 'BCPIPE', 'TOLAT', 'TOTHROUGH'. 
+        'BCUNI', 'BCTREE', 'BCPIPE', 'TOLAT', 'TOTHROUGH'.
         nproc defines the number of processes in the simulation"""
-        
+
         self.nproc = nproc #Number of processes to simulate
         self.new_msgs_schedule = new_msgs_schedule #When should a process send a new message. If Already sending, will enqueue. Format: [(turn, pid)]
         self.processes = [] #References to processes
         self.send_queue = [] #Internal list used to distribute messages
-        
+
         if mode == 'BCUNI':
             for i in range(0, self.nproc):
                self.processes.append(Process(i, self.nproc, self.processes, self.send_queue))
             self.sim_broadcast()
         elif mode == 'BCTREE':
-            sending_order = []
+            sending_order = {}
             for i in range(0, self.nproc):
                 self.processes.append(TreeProcess(i, self.nproc, self.processes, self.send_queue, sending_order))
             self.sim_broadcast()
@@ -34,19 +34,19 @@ class Simulator:
             self.sim_broadcast()
         else:
             print 'Mode not recognized'
-    
+
     def deliver_msgs(self, mode):
         """Simulates the msg transfer. Essentially puts the msg of the sender in the destination."""
         for sender, to, msg in self.send_queue:
             to.to_receive.append(msg)
-            
+
         del self.send_queue[:]
 
 
     def sim_broadcast(self):
         """Broadcasts a msg without acks using the processes algorithm to spread"""
-        
-        
+
+
         #Order list of new msgs
         self.new_msgs_schedule.sort()
 
@@ -74,7 +74,6 @@ class Simulator:
             self.deliver_msgs('UNICAST')
 
             delivered_msgs = 0
-            eq_clocks = True
             pre_clock = None
             counter_clocks = 0
             #Check if needs to continue executing
@@ -86,7 +85,7 @@ class Simulator:
                     pre_clock = pre_clock or proc.delivered[0]
                     if pre_clock == proc.delivered[0]:
                         counter_clocks += 1
-            
+
             #If a msg has been delivered to all processes, test if worst latency and remove from list
             if counter_clocks == self.nproc:
                 latency = max(msg_latencies[pre_clock], latency)
@@ -96,7 +95,7 @@ class Simulator:
 
             #Stop working when nb of delivered msgs is equal to all sent msgs.
             working = True if delivered_msgs !=  deliveries_to_stop else False
-                
+
             if working:
                 #Increase latencies
                 for k in msg_latencies:
@@ -130,8 +129,8 @@ def main():
     for new_msg_timing in schedule:
         turn, pid = new_msg_timing.split()
         new_msgs_schedule.append((int(turn), int(pid)))
-    
+
     simulator = Simulator()
     simulator.simulate(mode, nproc, new_msgs_schedule)
-    
+
 main()

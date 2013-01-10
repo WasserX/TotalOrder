@@ -67,18 +67,17 @@ class TreeProcess(Process):
         clock, pid, content = msg
 
         try:
-            index = self.sending_order.index(msg[0])
-            self.to_send = self.sending_order[index+1]
+            self.to_send = self.sending_order[clock]
             return
-        except ValueError: #If it does not exists, create a list and make it global
-            self.delivered.append(msg[0])
+        except KeyError: #If it does not exists, create a list and make it global
+            self.delivered.append(clock)
             self.to_send = []
+            
             for proc in self.others:
                 if proc != self:
                     self.to_send.append((msg, proc))
             
-            self.sending_order.append(self.clock)
-            self.sending_order.append(self.to_send)
+            self.sending_order[clock] = self.to_send
              
     def on_msg(self):
         msg = self.to_receive.pop(0)
@@ -113,7 +112,7 @@ class PipeProcess(Process):
 class TOProcess(Process):
     def __init__(self, pid, n_proc, others, send_queue):
         Process.__init__(self, pid, n_proc, others, send_queue)
-        self.to_ack = [] #Messages received but that did not get all the acks yet. Format: [(msg, [acks_rcvd])]
+        self.to_ack = {} #Messages received but that did not get all the acks yet. Format: {msg: <acks_rcvd>}
         
     def on_msg(self):
         msg = self.to_receive.pop(0)
@@ -160,26 +159,17 @@ class TOProcess(Process):
         If msg has been acknowledged by everyone, deliver it."""
         #If the list exists, add ack to list, otherwise create the list.
         clock, pid, content = msg
-        ackd_msg_exists = False
 
-        for i, element in enumerate(self.to_ack):
-            ack_clock, ack_pid, ack_content = element[0]
-            ack_proc_list = element[1]
-
-            if ack_clock == clock:
-                if content != 'ACK':
-                    self.to_ack.pop(i)
-                    self.to_ack.insert(i, ((clock, pid, content), ack_proc_list))
-                ack_proc_list.append(pid)
-                ackd_msg_exists = True
-                
-        if not ackd_msg_exists:   
-            self.to_ack.append((msg, [pid]))
-            self.to_ack.sort()
+        try:
+            self.to_ack[clock]['acks'] += 1
+            if content != 'ACK':
+                self.to_ack[clock]['msg'] = msg            
+        except KeyError:
+            self.to_ack[clock] = {'msg': msg, 'acks': 1}
 
         #Test if acknowledged by everyone, in that case deliver it
-        msg, acks = self.to_ack[0]
-        if len(acks) == self.nproc:
-            self.to_ack.pop(0)
+        lowest_clock_key = sorted(self.to_ack.iterkeys())[0]
+        if self.to_ack[lowest_clock_key]['acks'] == self.nproc:
+            msg = self.to_ack[lowest_clock_key]['msg']
+            del self.to_ack[lowest_clock_key]
             self.deliver(msg)
-        
