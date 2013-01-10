@@ -52,8 +52,8 @@ class Simulator:
 
         #Execute rounds
         turn = 0
-        working = True
         msg_latencies = []
+        working = True
         while working:
             turn = turn +1
             print '-- Round ' + str(turn) + ' --'
@@ -72,9 +72,12 @@ class Simulator:
             self.deliver_msgs('UNICAST')
 
             #Check if needs to continue executing
-            working = False
+            delivered_msgs = 0
             for proc in self.processes:
-                working = True if proc.to_send or proc.to_receive else working
+                delivered_msgs += proc.quant_delivered
+            
+            #Stop working when nb of delivered msgs is equal to all sent msgs.
+            working = True if delivered_msgs != self.nproc*len(self.new_msgs_schedule) else False
                 
             if working:
                 #Increase latencies
