@@ -4,6 +4,7 @@ class Process:
     def __init__(self, pid, n_proc, others, send_queue):
         self.pid = pid
         self.others = others
+        self.nproc = nproc
         self.send_new = False #Flag to tell if needs to send a new msg in the current round
         
         #Message to send in a round must be added to this queue.(Only one accepted per round).
@@ -74,7 +75,7 @@ class TreeProcess(Process):
 class PipeProcess(Process):
     def create_dest_list(self, msg):
         """In pipeline, only send msg to next process. Circular list. If dest is the sender, stop."""
-        normalized_dest = (self.pid + 1) % len(self.others)
+        normalized_dest = (self.pid + 1) % self.nproc
         if normalized_dest != msg[0]:
             self.to_send.append((msg, self.others[normalized_dest]))
 
