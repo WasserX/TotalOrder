@@ -1,4 +1,5 @@
 from __future__ import division
+from math import log
 
 class Process:
     def __init__(self, pid, n_proc, others, send_queue):
@@ -12,7 +13,7 @@ class Process:
         #Message Format: (clock, creator_pid, content)
         self.send_queue = send_queue
         
-        self.to_receive = [] #Queue of messages that need to be processed. One message will be processed per round. Format: [msg]
+        self.to_receive = [] #Queue of messages that need to be processed. One message will be processed per round. Format: [[msg],sender]
         self.to_send = [] #Remaining msgs that need to be sent. Format: [(msg, to)]
         self.delivered = [] #Keeps track of delivered msgs. Used to know when to finish simulation. Not used in algorithms. Format: [clock,...]
         self.clock = 0 + pid / n_proc
@@ -29,7 +30,7 @@ class Process:
             self.clock = self.clock + 1
         return
 
-    def create_dest_list(self, msg):
+    def create_dest_list(self, msg, sender):
         """This method will change according to policy. Establishes the order
         that will be used to broadcast the msg"""
         self.delivered.append(msg[0])
@@ -38,7 +39,7 @@ class Process:
                 self.to_send.append((msg, proc))
 
     def on_msg(self):
-        msg = self.to_receive.pop(0)
+        msg, sender = self.to_receive.pop(0)
         rcvd_clock, rcvd_pid, content = msg
         self.delivered.append(rcvd_clock)
         self.clock = max(self.clock, rcvd_clock) +1
@@ -49,7 +50,7 @@ class Process:
     def do_round(self):
         """Process a simple round"""
         if self.send_new:
-            self.create_dest_list((self.clock, self.pid, 'DATA'))
+            self.create_dest_list((self.clock, self.pid, 'DATA'), self.pid)
             self.send_new = False
             
         if self.to_receive:
@@ -64,7 +65,7 @@ class TreeProcess(Process):
         self.sending_order = sending_order
         self.test_list = []
 
-    def create_dest_list(self, msg):
+    def create_dest_list(self, msg, sender):
         #Check if remaining process list already exists
         clock, pid, content = msg
         
@@ -73,38 +74,56 @@ class TreeProcess(Process):
         if pid == self.pid:
             self.delivered.append(clock)
             #self.to_send.append((msg, self.others[0]))
+            exp = 0
             
+        else:
+            not_modularized_pid = self.pid    
+            if self.pid < pid:
+                not_modularized_pid += self.nproc
+            not_modularized_pid -= pid
+            # discover the x of the 2 raised to power x of the received message and increments
+            exp = int(log(not_modularized_pid, 2) + 1)           
+            
+        print "EXP", exp
+            
+        to_send_next = (pow(2, exp) + self.pid)
+        print pid, self.pid, to_send_next
         
-        #Find smallest 2^exp that fits in our pid
-        exp = 0
-        while pow(2, exp) <= abs(self.pid-pid):
-            exp +=1
+        if self.pid < pid:
+            while to_send_next < pid:
+                #Case when msg started in the middle and a <pid tries to send msg back to owner
+                to_send_next = to_send_next  % self.nproc
+                if to_send_next != self.pid:
+                    self.to_send.append((msg, self.others[to_send_next]))
+                #self.to_send.append((msg, self.others[to_send_next % self.nproc]))
+                
+                exp += 1
+                to_send_next = (pow(2, exp) + self.pid)
+        else:
+            while to_send_next < self.nproc + pid:
+                #Case when msg started in the middle and a <pid tries to send msg back to owner
+                to_send_next = to_send_next  % self.nproc
+                if to_send_next != self.pid:
+                    self.to_send.append((msg, self.others[to_send_next]))
+                #self.to_send.append((msg, self.others[to_send_next % self.nproc]))
+                
+                exp += 1
+                to_send_next = (pow(2, exp) + self.pid)
             
-        to_send_next = pow(2, exp) + self.pid - pid
-        
-        while to_send_next < self.nproc + pid:
-            #Case when msg started in the middle and a <pid tries to send msg back to owner
-            to_send_next = to_send_next % self.nproc
-            if to_send_next != self.pid:
-                self.to_send.append((msg, self.others[to_send_next]))
-            #self.to_send.append((msg, self.others[to_send_next % self.nproc]))
-            
-            exp += 1
-            to_send_next = pow(2,exp) + self.pid - pid
         #print self.pid, [(x[0], x[1].pid) for x in self.to_send]
         
     def on_msg(self):
-        msg = self.to_receive.pop(0)
+        msg, sender = self.to_receive.pop(0)
         self.test_list.append(msg)
         clock, pid, content = msg
-        self.create_dest_list(msg)
+        self.create_dest_list(msg,sender)
         self.delivered.append(clock)
         
         print 'Process ' + str(self.pid) + ' received msg: ' + str(msg)
 
 
 class PipeProcess(Process):
-    def create_dest_list(self, msg):
+    def create_dest_list(self, msg, sender):
         """In pipeline, only send msg to next process. Circular list. If dest is the sender, stop."""
         clock, pid, content = msg
         if pid == self.pid:
@@ -115,14 +134,14 @@ class PipeProcess(Process):
 
     def on_msg(self):
         """When a msg is received. Send it to the next process."""
-        msg = self.to_receive.pop(0)
+        msg, sender = self.to_receive.pop(0)
         clock, pid, content = msg
         self.delivered.append(clock)
     
         print 'Process ' + str(self.pid) + ' received msg: ' + str(msg)
 
         if pid != self.pid:
-            self.create_dest_list(msg)
+            self.create_dest_list(msg, sender)
             
             
 class TOProcess(Process):
@@ -131,7 +150,7 @@ class TOProcess(Process):
         self.to_ack = {} #Messages received but that did not get all the acks yet. Format: {msg: <acks_rcvd>}
         
     def on_msg(self):
-        msg = self.to_receive.pop(0)
+        msg, sender = self.to_receive.pop(0)
         rcvd_clock, rcvd_pid, content = msg
         
         print 'Process ' + str(self.pid) + ' received msg: ' + str(msg)
@@ -141,12 +160,12 @@ class TOProcess(Process):
         #If we received a DATA msg. Send acks to everyone to tell them we received the msg.
         if content != 'ACK':
             ack_packet = (rcvd_clock, self.pid, 'ACK')
-            self.create_dest_list(ack_packet)
+            self.create_dest_list(ack_packet, sender)
             self.ack_msg(ack_packet)
         
         self.ack_msg(msg)
         
-    def create_dest_list(self, msg):
+    def create_dest_list(self, msg, sender):
         clock, pid, content = msg
         
         #If we are sending the DATA msg to everyone, ACK the message to ourselves without using a round.

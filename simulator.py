@@ -38,7 +38,7 @@ class Simulator:
     def send_msgs(self, mode):
         """Simulates the msg transfer. Essentially puts the msg of the sender in the destination."""
         for sender, to, msg in self.send_queue:
-            to.to_receive.append(msg)
+            to.to_receive.append((msg, sender))
 
         del self.send_queue[:]
 
@@ -74,6 +74,7 @@ class Simulator:
             #Send msgs for next round
             self.send_msgs('UNICAST')
             
+            
             #Count delivered messages in the round and add them to the values that we had from old rounds
             for proc in self.processes:
                 for clock in proc.delivered:
@@ -81,8 +82,7 @@ class Simulator:
                         delivered_msgs[clock]['counter'] += 1
                     except KeyError:
                         delivered_msgs[clock] = {'counter': 1, 'delivered': False}
-                    proc.delivered.remove(clock)
-                    
+                    proc.delivered.remove(clock)        
             #When a delivery is done to all messages, mark it as finished and stop counting its latency
             for clock, v in delivered_msgs.iteritems():
                 if v['counter'] == self.nproc and not v['delivered']:
@@ -98,7 +98,6 @@ class Simulator:
                 #Increase latencies
                 for k in msg_latencies:
                     msg_latencies[k] += 1
-
         self.print_results(self.nproc, turn-1, latency, (len(self.new_msgs_schedule), turn-1))
 
 
