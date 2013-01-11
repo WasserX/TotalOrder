@@ -35,7 +35,7 @@ class Simulator:
         else:
             print 'Mode not recognized'
 
-    def deliver_msgs(self, mode):
+    def send_msgs(self, mode):
         """Simulates the msg transfer. Essentially puts the msg of the sender in the destination."""
         for sender, to, msg in self.send_queue:
             to.to_receive.append(msg)
@@ -54,6 +54,7 @@ class Simulator:
         turn = 0
         latency = -1
         msg_latencies = {}
+        delivered_msgs = {}
         deliveries_to_stop = self.nproc*len(self.new_msgs_schedule)
         working = True
         while working:
@@ -70,32 +71,28 @@ class Simulator:
                 #Execute round for each process
                 proc.do_round()
 
-            #Deliver msgs for next round
-            self.deliver_msgs('UNICAST')
-
-            delivered_msgs = 0
-            pre_clock = None
-            counter_clocks = 0
-            #Check if needs to continue executing
-            #Count number of delivered msgs and test if a msg has been delivered to all processes
+            #Send msgs for next round
+            self.send_msgs('UNICAST')
+            
+            #Count delivered messages in the round and add them to the values that we had from old rounds
             for proc in self.processes:
-                delivered_msgs += len(proc.delivered)
-                proc.delivered.sort()
-                if proc.delivered:
-                    pre_clock = pre_clock or proc.delivered[0]
-                    if pre_clock == proc.delivered[0]:
-                        counter_clocks += 1
+                for clock in proc.delivered:
+                    try:
+                        delivered_msgs[clock]['counter'] += 1
+                    except KeyError:
+                        delivered_msgs[clock] = {'counter': 1, 'delivered': False}
+                    proc.delivered.remove(clock)
+                    
+            #When a delivery is done to all messages, mark it as finished and stop counting its latency
+            for clock, v in delivered_msgs.iteritems():
+                if v['counter'] == self.nproc and not v['delivered']:
+                    latency = max(latency, msg_latencies[clock])
+                    del msg_latencies[clock]
+                    v['delivered'] = True
+                    deliveries_to_stop -= v['counter']
 
-            #If a msg has been delivered to all processes, test if worst latency and remove from list
-            if counter_clocks == self.nproc:
-                latency = max(msg_latencies[pre_clock], latency)
-                del msg_latencies[pre_clock]
-                deliveries_to_stop -= counter_clocks #When a msg was completely delivered, make the stop flag smaller
-                for proc in self.processes:
-                    del proc.delivered[0]
-
-            #Stop working when nb of delivered msgs is equal to all sent msgs.
-            working = True if delivered_msgs !=  deliveries_to_stop else False
+            #Stop working when nb of delivered msgs is equal to all delivered msgs.
+            working = True if deliveries_to_stop else False
 
             if working:
                 #Increase latencies
