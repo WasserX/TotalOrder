@@ -24,7 +24,7 @@ class Process:
             packet = (self.pid, to, msg)
             
             self.send_queue.append(packet)
-            #print 'PID ' + str(self.pid) + ' sent msg ' + str(msg) + ' to ' + str(to.pid)
+            print 'PID ' + str(self.pid) + ' sent msg ' + str(msg) + ' to ' + str(to.pid)
             
             self.clock = self.clock + 1
         return
@@ -62,26 +62,40 @@ class TreeProcess(Process):
     def __init__(self, pid, n_proc, others, send_queue, sending_order):
         Process.__init__(self, pid, n_proc, others, send_queue)
         self.sending_order = sending_order
+        self.test_list = []
 
     def create_dest_list(self, msg):
         #Check if remaining process list already exists
         clock, pid, content = msg
-
-        try:
-            self.to_send = self.sending_order[clock]
-            return
-        except KeyError: #If it does not exists, create a list and make it global
+        
+        #If I'm the creator of the msg. Forward data packet to first pid also.
+        #This takes care of distribution of msgs for pids < myself
+        if pid == self.pid:
             self.delivered.append(clock)
-            self.to_send = []
+            #self.to_send.append((msg, self.others[0]))
             
-            for proc in self.others:
-                if proc != self:
-                    self.to_send.append((msg, proc))
+        
+        #Find smallest 2^exp that fits in our pid
+        exp = 0
+        while pow(2, exp) <= abs(self.pid-pid):
+            exp +=1
             
-            self.sending_order[clock] = self.to_send
-             
+        to_send_next = pow(2, exp) + self.pid - pid
+        
+        while to_send_next < self.nproc + pid:
+            #Case when msg started in the middle and a <pid tries to send msg back to owner
+            to_send_next = to_send_next % self.nproc
+            if to_send_next != self.pid:
+                self.to_send.append((msg, self.others[to_send_next]))
+            #self.to_send.append((msg, self.others[to_send_next % self.nproc]))
+            
+            exp += 1
+            to_send_next = pow(2,exp) + self.pid - pid
+        #print self.pid, [(x[0], x[1].pid) for x in self.to_send]
+        
     def on_msg(self):
         msg = self.to_receive.pop(0)
+        self.test_list.append(msg)
         clock, pid, content = msg
         self.create_dest_list(msg)
         self.delivered.append(clock)
