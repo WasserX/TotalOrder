@@ -58,7 +58,7 @@ class Simulator:
         deliveries_to_stop = self.nproc*len(self.new_msgs_schedule)
         working = True
         while working:
-            turn = turn +1
+            turn += 1
             print '-- Round ' + str(turn) + ' --'
 
             #See if a new msg needs to be created in this round and set flags accordingly

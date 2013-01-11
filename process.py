@@ -172,8 +172,10 @@ class TOProcess(Process):
             self.to_ack[clock] = {'msg': msg, 'acks': 1}
 
         #Test if acknowledged by everyone, in that case deliver it
-        lowest_clock_key = sorted(self.to_ack.iterkeys())[0]
-        if self.to_ack[lowest_clock_key]['acks'] == self.nproc:
-            msg = self.to_ack[lowest_clock_key]['msg']
-            del self.to_ack[lowest_clock_key]
-            self.deliver(msg)
+        for clock in sorted(self.to_ack.iterkeys()):
+            if self.to_ack[clock]['acks'] == self.nproc:
+                self.deliver(self.to_ack[clock]['msg'])
+                del self.to_ack[clock]
+            else:
+                return
+            
