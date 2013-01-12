@@ -141,13 +141,13 @@ class PipeProcess(Process):
             self.create_dest_list(msg)
 
 
-class TOProcess(Process):
+class TOProcess(TreeProcess):
     def __init__(self, pid, n_proc, others, send_queue):
         Process.__init__(self, pid, n_proc, others, send_queue)
         self.to_ack = {} #Messages received but that did not get all the acks yet. Format: {msg: <acks_rcvd>}
 
     def on_msg(self):
-        self.to_receive = sorted(self.to_receive, key=itemgetter(2, 0))
+        self.to_receive.sort(key=itemgetter(2, 0))
         msg = self.to_receive.pop(0)
         rcvd_clock, rcvd_pid, content = msg
 
@@ -157,24 +157,33 @@ class TOProcess(Process):
 
         #If we received a DATA msg. Send acks to everyone to tell them we received the msg.
         if content != 'ACK':
-            ack_packet = (rcvd_clock, self.pid, 'ACK')
-            self.create_dest_list(ack_packet)
-            self.ack_msg(ack_packet)
+            self.create_dest_list(msg)
 
         self.ack_msg(msg)
 
     def create_dest_list(self, msg):
         clock, pid, content = msg
 
-        #If we are sending the DATA msg to everyone, ACK the message to ourselves without using a round.
-        if content != 'ACK':
-            self.ack_msg(msg)
-
         new_to_send = []
-        for proc in self.others:
-            if proc != self:
-                new_to_send.append((msg, proc))
+        
+        #If we are sending the DATA msg to everyone, ACK the message to ourselves without using a round.
+        if self.pid == pid:
+            self.ack_msg(msg)
+        
+        #Help distribute data msgs even if we are not the senders
+        destinations = self.get_remaining_proc_from_msg(msg)
+        for proc in destinations:
+            new_to_send.append((msg, proc))
+        
+    
+        #Add ACK msg to sending queue. Sending msg using Multicast. Only if we are not the sender
+        if self.pid != pid:
+            ack_packet = (clock, self.pid, 'ACK')
+            new_to_send.append((ack_packet, None))
 
+        self.to_send.sort(key=lambda x: x[0][0])
+        self.to_send.sort(key=lambda x: x[0][2], reverse=True)
+    
         for i, packet in enumerate(self.to_send):
             pack_msg, proc = packet
             if pack_msg[0] > clock:

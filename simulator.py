@@ -45,8 +45,7 @@ class Simulator:
             else:
                 #Message was a multicast
                 for proc in self.processes:
-                    if proc.pid != sender:
-                        proc.to_receive.append(msg)
+                    proc.to_receive.append(msg)
 
         del self.send_queue[:]
 
