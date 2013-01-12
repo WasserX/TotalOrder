@@ -145,6 +145,7 @@ class TOProcess(TreeProcess):
     def __init__(self, pid, n_proc, others, send_queue):
         Process.__init__(self, pid, n_proc, others, send_queue)
         self.to_ack = {} #Messages received but that did not get all the acks yet. Format: {msg: <acks_rcvd>}
+        self.delayed_sends = [] #Format: [[(msg,dest)],[(msg,dest)]]
 
     def on_msg(self):
         self.to_receive.sort(key=itemgetter(2, 0))
@@ -163,9 +164,8 @@ class TOProcess(TreeProcess):
 
     def create_dest_list(self, msg):
         clock, pid, content = msg
+        temp_destinations = []
 
-        new_to_send = []
-        
         #If we are sending the DATA msg to everyone, ACK the message to ourselves without using a round.
         if self.pid == pid:
             self.ack_msg(msg)
@@ -173,30 +173,36 @@ class TOProcess(TreeProcess):
         #Help distribute data msgs even if we are not the senders
         destinations = self.get_remaining_proc_from_msg(msg)
         for proc in destinations:
-            new_to_send.append((msg, proc))
+            temp_destinations.append((msg, proc))
         
     
         #Add ACK msg to sending queue. Sending msg using Multicast. Only if we are not the sender
         if self.pid != pid:
             ack_packet = (clock, self.pid, 'ACK')
-            new_to_send.append((ack_packet, None))
+            temp_destinations.append((ack_packet, None))
 
-        self.to_send.sort(key=lambda x: x[0][0])
-        self.to_send.sort(key=lambda x: x[0][2], reverse=True)
+        temp_destinations.sort(key=lambda x: x[0][0])
+        temp_destinations.sort(key=lambda x: x[0][2], reverse=True)
     
-        for i, packet in enumerate(self.to_send):
-            pack_msg, proc = packet
-            if pack_msg[0] > clock:
-                self.to_send[i:i] = new_to_send
-                return
-
-        self.to_send.extend(new_to_send)
+        
+        #Block sending queue until message is delivered
+        if self.to_send and self.to_send[0][0][0] < clock:
+            self.delayed_sends.append(temp_destinations)
+        elif self.to_send:
+            self.delayed_sends.append(self.to_send[:])
+            self.to_send = temp_destinations
+        else:
+            self.to_send = temp_destinations
 
 
     def deliver(self, msg):
         print 'Message ' + str(msg) + ' Delivered in ' + str(self.pid)
         self.delivered.append(msg[0])
-
+        
+        #Unpause sending queue
+        if self.delayed_sends:
+            self.delayed_sends.sort(key=lambda x: x[0][0][0])
+            self.to_send = self.delayed_sends.pop(0)
 
     def ack_msg(self, msg):
         """Received an acknowledge of msg sent by process pid. Add it to list of ackd msgs.
