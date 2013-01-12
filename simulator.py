@@ -38,7 +38,7 @@ class Simulator:
     def send_msgs(self, mode):
         """Simulates the msg transfer. Essentially puts the msg of the sender in the destination."""
         for sender, to, msg in self.send_queue:
-            to.to_receive.append((msg, sender))
+            to.to_receive.append(msg)
 
         del self.send_queue[:]
 
