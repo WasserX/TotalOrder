@@ -29,7 +29,11 @@ class Simulator:
             self.sim_broadcast()
         elif mode == 'TOLAT':
             for i in range(0, self.nproc):
-                self.processes.append(TOProcess(i, self.nproc, self.processes, self.send_queue))
+                self.processes.append(TOLATProcess(i, self.nproc, self.processes, self.send_queue))
+            self.sim_broadcast()
+        elif mode == 'TOTHROUGH':
+            for i in range(0, self.nproc):
+                self.processes.append(TOTHROUGHProcess(i, self.nproc, self.processes, self.send_queue))
             self.sim_broadcast()
         else:
             print 'Mode not recognized'

@@ -141,7 +141,7 @@ class PipeProcess(Process):
             self.create_dest_list(msg)
 
 
-class TOProcess(TreeProcess):
+class TOLATProcess(TreeProcess):
     def __init__(self, pid, n_proc, others, send_queue):
         Process.__init__(self, pid, n_proc, others, send_queue)
         self.to_ack = {} #Messages received but that did not get all the acks yet. Format: {msg: <acks_rcvd>}
@@ -224,3 +224,74 @@ class TOProcess(TreeProcess):
                 del self.to_ack[clock]
             else:
                 return
+
+
+class TOTHROUGHProcess(TreeProcess):
+    def __init__(self, pid, n_proc, others, send_queue):
+        Process.__init__(self, pid, n_proc, others, send_queue)
+        self.to_ack = {} #Messages received but that did not get all the acks yet. Format: {msg: <acks_rcvd>}
+
+    def on_msg(self):
+        self.to_receive.sort(key=itemgetter(2, 0))
+        msg = self.to_receive.pop(0)
+        rcvd_clock, rcvd_pid, content = msg
+
+        print 'Process ' + str(self.pid) + ' received msg: ' + str(msg)
+
+        self.clock = max(self.clock, rcvd_clock) + 1
+
+        #If we received a DATA msg. Send acks to everyone to tell them we received the msg.
+        if content != 'ACK':
+            self.create_dest_list(msg)
+
+        self.ack_msg(msg)
+
+    def create_dest_list(self, msg):
+        clock, pid, content = msg
+
+        #If we are sending the DATA msg to everyone, ACK the message to ourselves without using a round.
+        if self.pid == pid:
+            self.ack_msg(msg)
+        
+        #Help distribute data msgs even if we are not the senders
+        destinations = self.get_remaining_proc_from_msg(msg)
+        for proc in destinations:
+            self.to_send.append((msg, proc))
+        
+    
+        #Add ACK msg to sending queue. Sending msg using Multicast. Only if we are not the sender        
+        if self.pid != pid:
+            ack_packet = (clock, self.pid, 'ACK')
+            self.ack_msg(ack_packet)
+            ack_dests = [(ack_packet, proc) for proc in self.others if proc != self ]
+            self.to_send.extend(ack_dests)
+            print ack_dests
+            
+        self.to_send.sort(key=lambda x: x[0][0])
+        self.to_send.sort(key=lambda x: x[0][2], reverse=True)
+
+
+    def deliver(self, msg):
+        print 'Message ' + str(msg) + ' Delivered in ' + str(self.pid)
+        self.delivered.append(msg[0])
+
+    def ack_msg(self, msg):
+        """Received an acknowledge of msg sent by process pid. Add it to list of ackd msgs.
+        If msg has been acknowledged by everyone, deliver it."""
+        #If the list exists, add ack to list, otherwise create the list.
+        clock, pid, content = msg
+
+        try:
+            self.to_ack[clock]['acks'] += 1
+            if content != 'ACK':
+                self.to_ack[clock]['msg'] = msg
+        except KeyError:
+            self.to_ack[clock] = {'msg': msg, 'acks': 1}
+
+        #Test if acknowledged by everyone, in that case deliver it
+        for clock in sorted(self.to_ack.iterkeys()):
+            if self.to_ack[clock]['acks'] == self.nproc:
+                self.deliver(self.to_ack[clock]['msg'])
+                del self.to_ack[clock]
+            else:
+                return                
