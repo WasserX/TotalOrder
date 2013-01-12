@@ -1,5 +1,6 @@
 from __future__ import division
 from math import log
+from operator import itemgetter
 
 class Process:
 
@@ -146,7 +147,7 @@ class TOProcess(Process):
         self.to_ack = {} #Messages received but that did not get all the acks yet. Format: {msg: <acks_rcvd>}
 
     def on_msg(self):
-
+        self.to_receive = sorted(self.to_receive, key=itemgetter(2, 0))
         msg = self.to_receive.pop(0)
         rcvd_clock, rcvd_pid, content = msg
 
