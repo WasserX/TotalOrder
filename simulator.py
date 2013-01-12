@@ -37,9 +37,16 @@ class Simulator:
     def send_msgs(self):
         """Simulates the msg transfer. Essentially puts the msg of the sender in the destination."""
         """If the msg was marked as multicast, will replicate it for all processes."""
-        
-        for sender, to, msg in self.send_queue:
-            to.to_receive.append(msg)
+
+        for sender, dest, msg in self.send_queue:
+            #If has a dest, then unicast, otherwise multicast.
+            if dest:
+                dest.to_receive.append(msg)
+            else:
+                #Message was a multicast
+                for proc in self.processes:
+                    if proc.pid != sender:
+                        proc.to_receive.append(msg)
 
         del self.send_queue[:]
 
@@ -73,8 +80,8 @@ class Simulator:
 
             #Send msgs for next round
             self.send_msgs()
-            
-            
+
+
             #Count delivered messages in the round and add them to the values that we had from old rounds
             for proc in self.processes:
                 for clock in proc.delivered:
@@ -82,7 +89,7 @@ class Simulator:
                         delivered_msgs[clock]['counter'] += 1
                     except KeyError:
                         delivered_msgs[clock] = {'counter': 1, 'delivered': False}
-                    proc.delivered.remove(clock)        
+                    proc.delivered.remove(clock)
             #When a delivery is done to all messages, mark it as finished and stop counting its latency
             for clock, v in delivered_msgs.iteritems():
                 if v['counter'] == self.nproc and not v['delivered']:

@@ -2,6 +2,7 @@ from __future__ import division
 from math import log
 
 class Process:
+
     def __init__(self, pid, n_proc, others, send_queue):
         self.pid = pid
         self.others = others
@@ -9,7 +10,7 @@ class Process:
         self.send_new = False #Flag to tell if needs to send a new msg in the current round
 
         #Message to send in a round must be added to this queue.(Only one accepted per round).
-        #Format: (emitter, to, msg) emitter can be different than original sender
+        #Format: (emitter, to, msg) emitter can be different than original sender. Multicast is implied if to = None
         #Message Format: (clock, creator_pid, content)
         self.send_queue = send_queue
 
@@ -20,14 +21,18 @@ class Process:
 
     def send_msg(self):
         """Sends a msg that is in the sending queue"""
+
         if self.to_send:
             msg, to = self.to_send.pop(0)
             packet = (self.pid, to, msg)
 
             self.send_queue.append(packet)
-            print 'PID ' + str(self.pid) + ' sent msg ' + str(msg) + ' to ' + str(to.pid)
 
-            self.clock = self.clock + 1
+            #To whom it sent the message
+            dest = to.pid if to else 'everyone'
+            print 'PID ' + str(self.pid) + ' sent msg ' + str(msg) + ' to ' + str(dest)
+
+            self.clock += 1
         return
 
     def create_dest_list(self, msg):
@@ -76,18 +81,18 @@ class TreeProcess(Process):
         """In other words. Here is the tree algorithm."""
 
         clock, pid, content = msg
-        
+
         if pid == self.pid:
             exp = 0
         else:
             # not_modularized_pid is the value before doing mod nproc
             not_modularized_pid = self.pid if self.pid >= pid else self.pid + self.nproc
-            
+
             not_modularized_pid -= pid
             # discover the exp of the received message and increments it to use it
             # this is the inverse function of pow(2,exp) + pid
             exp = int(log(not_modularized_pid, 2) + 1)
-        
+
         next_remaining = (pow(2, exp) + self.pid)
 
         #If pid smaller than sender, send until the sender. Otherwise Reach the sender in a circular fashion
@@ -101,9 +106,9 @@ class TreeProcess(Process):
 
             exp += 1
             next_remaining = (pow(2, exp) + self.pid)
-        
+
         return remaining
-    
+
     def on_msg(self):
         msg = self.to_receive.pop(0)
         clock, pid, content = msg
@@ -141,6 +146,7 @@ class TOProcess(Process):
         self.to_ack = {} #Messages received but that did not get all the acks yet. Format: {msg: <acks_rcvd>}
 
     def on_msg(self):
+
         msg = self.to_receive.pop(0)
         rcvd_clock, rcvd_pid, content = msg
 
