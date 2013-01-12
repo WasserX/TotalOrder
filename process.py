@@ -262,10 +262,7 @@ class TOTHROUGHProcess(TreeProcess):
         #Add ACK msg to sending queue. Sending msg using Multicast. Only if we are not the sender        
         if self.pid != pid:
             ack_packet = (clock, self.pid, 'ACK')
-            self.ack_msg(ack_packet)
-            ack_dests = [(ack_packet, proc) for proc in self.others if proc != self ]
-            self.to_send.extend(ack_dests)
-            print ack_dests
+            self.to_send.append((ack_packet, None))
             
         self.to_send.sort(key=lambda x: x[0][0])
         self.to_send.sort(key=lambda x: x[0][2], reverse=True)
