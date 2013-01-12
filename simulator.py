@@ -35,17 +35,9 @@ class Simulator:
         else:
             print 'Mode not recognized'
 
-    def send_msgs(self, mode, msg_latencies):
+    def send_msgs(self, mode):
         """Simulates the msg transfer. Essentially puts the msg of the sender in the destination."""
-        """It also starts counting latencies if a new msg was sent."""
-        
         for sender, to, msg in self.send_queue:
-            clock, original_sender, content = msg
-            
-            #Start counting latency when first DATA msg is sent.
-            if original_sender == sender and content != 'ACK' and clock not in msg_latencies:
-                    msg_latencies[clock] = {'latency': 0, 'delivered': False}
-            
             to.to_receive.append(msg)
 
         del self.send_queue[:]
@@ -60,6 +52,7 @@ class Simulator:
 
         #Execute rounds
         turn = 0
+        latency = -1
         msg_latencies = {}
         delivered_msgs = {}
         deliveries_to_stop = self.nproc*len(self.new_msgs_schedule)
@@ -72,13 +65,15 @@ class Simulator:
             for msg_turn, pid in self.new_msgs_schedule:
                 if msg_turn == turn:
                     self.processes[pid].send_new = True #Set flag to tell sender to create new msg
+                    msg_latencies[self.processes[pid].clock] = 0
 
             for proc in self.processes:
                 #Execute round for each process
                 proc.do_round()
 
             #Send msgs for next round
-            self.send_msgs('UNICAST', msg_latencies)
+            self.send_msgs('UNICAST')
+            
             
             #Count delivered messages in the round and add them to the values that we had from old rounds
             for proc in self.processes:
@@ -87,12 +82,12 @@ class Simulator:
                         delivered_msgs[clock]['counter'] += 1
                     except KeyError:
                         delivered_msgs[clock] = {'counter': 1, 'delivered': False}
-                    proc.delivered.remove(clock)
-                    
+                    proc.delivered.remove(clock)        
             #When a delivery is done to all messages, mark it as finished and stop counting its latency
             for clock, v in delivered_msgs.iteritems():
                 if v['counter'] == self.nproc and not v['delivered']:
-                    msg_latencies[clock]['delivered'] = True
+                    latency = max(latency, msg_latencies[clock])
+                    del msg_latencies[clock]
                     v['delivered'] = True
                     deliveries_to_stop -= v['counter']
 
@@ -102,21 +97,16 @@ class Simulator:
             if working:
                 #Increase latencies
                 for k in msg_latencies:
-                    if not msg_latencies[k]['delivered']:
-                        msg_latencies[k]['latency'] += 1
-            
-        latencies = []
-        for k in msg_latencies:
-            latencies.append(msg_latencies[k]['latency'])
-        self.print_results(self.nproc, turn-1, latencies, (len(self.new_msgs_schedule), turn-1))
+                    msg_latencies[k] += 1
+        self.print_results(self.nproc, turn-1, latency, (len(self.new_msgs_schedule), turn-1))
 
 
-    def print_results(self, nproc, rounds, latencies, throughput):
+    def print_results(self, nproc, rounds, latency, throughput):
         print '-- Simulation Ended --'
         print 'Results:'
         print '    Nb of Processes: ' + str(nproc)
         print '    Rounds: ' + str(rounds)
-        print '    Latencies: ' + str(latencies), 'Max:', max(latencies), 'Min:', min(latencies), 'Avg.:', sum(latencies)/len(latencies)
+        print '    Latency: ' + str(latency)
         print '    Throughput: ' + str(throughput[0]) + '/' + str(throughput[1])
 
 

@@ -1,4 +1,5 @@
 from __future__ import division
+from math import log
 
 class Process:
     def __init__(self, pid, n_proc, others, send_queue):
@@ -24,7 +25,7 @@ class Process:
             packet = (self.pid, to, msg)
             
             self.send_queue.append(packet)
-            #print 'PID ' + str(self.pid) + ' sent msg ' + str(msg) + ' to ' + str(to.pid)
+            print 'PID ' + str(self.pid) + ' sent msg ' + str(msg) + ' to ' + str(to.pid)
             
             self.clock = self.clock + 1
         return
@@ -62,26 +63,56 @@ class TreeProcess(Process):
     def __init__(self, pid, n_proc, others, send_queue, sending_order):
         Process.__init__(self, pid, n_proc, others, send_queue)
         self.sending_order = sending_order
+        self.test_list = []
 
     def create_dest_list(self, msg):
         #Check if remaining process list already exists
         clock, pid, content = msg
-
-        try:
-            self.to_send = self.sending_order[clock]
-            return
-        except KeyError: #If it does not exists, create a list and make it global
+        
+        #If I'm the creator of the msg. Forward data packet to first pid also.
+        #This takes care of distribution of msgs for pids < myself
+        if pid == self.pid:
             self.delivered.append(clock)
-            self.to_send = []
+            exp = 0
             
-            for proc in self.others:
-                if proc != self:
-                    self.to_send.append((msg, proc))
+        else:
+            # not_modularized_pid is the value before doing mod nproc 
+            not_modularized_pid = self.pid
+            # if pid is smaller than who initiated, 
+            if self.pid < pid:
+                not_modularized_pid += self.nproc
             
-            self.sending_order[clock] = self.to_send
-             
+            not_modularized_pid -= pid
+            # discover the exp of the received message and increments it to use it
+            # this is the inverse function of pow(2,exp) + pid
+            exp = int(log(not_modularized_pid, 2) + 1)           
+            
+        to_send_next = (pow(2, exp) + self.pid)
+        
+        if self.pid < pid:
+            while to_send_next < pid:
+                #Case when process is smaller than who initiated, hence sends until the one who initiated
+                to_send_next = to_send_next  % self.nproc
+                #does not send to itself
+                if to_send_next != self.pid:
+                    self.to_send.append((msg, self.others[to_send_next]))
+                
+                exp += 1
+                to_send_next = (pow(2, exp) + self.pid)
+        else:
+            while to_send_next < self.nproc + pid:
+                #Case when process is bigger or equal than who initiated, hence sends until it reaches the one who initiated in a circular fashion
+                to_send_next = to_send_next  % self.nproc
+                #does not send to itself
+                if to_send_next != self.pid:
+                    self.to_send.append((msg, self.others[to_send_next]))
+                
+                exp += 1
+                to_send_next = (pow(2, exp) + self.pid)
+        
     def on_msg(self):
         msg = self.to_receive.pop(0)
+        self.test_list.append(msg)
         clock, pid, content = msg
         self.create_dest_list(msg)
         self.delivered.append(clock)
