@@ -20,9 +20,8 @@ class Simulator:
                self.processes.append(Process(i, self.nproc, self.processes, self.send_queue))
             self.sim_broadcast()
         elif mode == 'BCTREE':
-            sending_order = {}
             for i in range(0, self.nproc):
-                self.processes.append(TreeProcess(i, self.nproc, self.processes, self.send_queue, sending_order))
+                self.processes.append(TreeProcess(i, self.nproc, self.processes, self.send_queue))
             self.sim_broadcast()
         elif mode == 'BCPIPE':
             for i in range(0, self.nproc):
@@ -35,8 +34,10 @@ class Simulator:
         else:
             print 'Mode not recognized'
 
-    def send_msgs(self, mode):
+    def send_msgs(self):
         """Simulates the msg transfer. Essentially puts the msg of the sender in the destination."""
+        """If the msg was marked as multicast, will replicate it for all processes."""
+        
         for sender, to, msg in self.send_queue:
             to.to_receive.append(msg)
 
@@ -45,7 +46,6 @@ class Simulator:
 
     def sim_broadcast(self):
         """Broadcasts a msg without acks using the processes algorithm to spread"""
-
 
         #Order list of new msgs
         self.new_msgs_schedule.sort()
@@ -72,7 +72,7 @@ class Simulator:
                 proc.do_round()
 
             #Send msgs for next round
-            self.send_msgs('UNICAST')
+            self.send_msgs()
             
             
             #Count delivered messages in the round and add them to the values that we had from old rounds
