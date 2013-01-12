@@ -169,13 +169,13 @@ class TOLATProcess(TreeProcess):
         #If we are sending the DATA msg to everyone, ACK the message to ourselves without using a round.
         if self.pid == pid:
             self.ack_msg(msg)
-        
+
         #Help distribute data msgs even if we are not the senders
         destinations = self.get_remaining_proc_from_msg(msg)
         for proc in destinations:
             temp_destinations.append((msg, proc))
-        
-    
+
+
         #Add ACK msg to sending queue. Sending msg using Multicast. Only if we are not the sender
         if self.pid != pid:
             ack_packet = (clock, self.pid, 'ACK')
@@ -183,8 +183,8 @@ class TOLATProcess(TreeProcess):
 
         temp_destinations.sort(key=lambda x: x[0][0])
         temp_destinations.sort(key=lambda x: x[0][2], reverse=True)
-    
-        
+
+
         #Block sending queue until message is delivered
         if self.to_send and self.to_send[0][0][0] < clock:
             self.delayed_sends.append(temp_destinations)
@@ -198,7 +198,7 @@ class TOLATProcess(TreeProcess):
     def deliver(self, msg):
         print 'Message ' + str(msg) + ' Delivered in ' + str(self.pid)
         self.delivered.append(msg[0])
-        
+
         #Unpause sending queue
         if self.delayed_sends:
             self.delayed_sends.sort(key=lambda x: x[0][0][0])
@@ -252,18 +252,18 @@ class TOTHROUGHProcess(TreeProcess):
         #If we are sending the DATA msg to everyone, ACK the message to ourselves without using a round.
         if self.pid == pid:
             self.ack_msg(msg)
-        
+
         #Help distribute data msgs even if we are not the senders
         destinations = self.get_remaining_proc_from_msg(msg)
         for proc in destinations:
             self.to_send.append((msg, proc))
-        
-    
-        #Add ACK msg to sending queue. Sending msg using Multicast. Only if we are not the sender        
+
+
+        #Add ACK msg to sending queue. Sending msg using Multicast. Only if we are not the sender
         if self.pid != pid:
             ack_packet = (clock, self.pid, 'ACK')
             self.to_send.append((ack_packet, None))
-            
+
         self.to_send.sort(key=lambda x: x[0][0])
         self.to_send.sort(key=lambda x: x[0][2], reverse=True)
 
@@ -291,4 +291,4 @@ class TOTHROUGHProcess(TreeProcess):
                 self.deliver(self.to_ack[clock]['msg'])
                 del self.to_ack[clock]
             else:
-                return                
+                return

@@ -44,10 +44,10 @@ class Simulator:
 
         for sender, dest, msg in self.send_queue:
             clock, pid, content = msg
-            
+
             if not clock in latencies: #Start counting only on first msg
                 latencies[clock] = {'latency': 0, 'delivered': False, 'deliveries': 0}
-                
+
             #If has a dest, then unicast, otherwise multicast.
             if dest:
                 dest.to_receive.append(msg)
@@ -105,12 +105,12 @@ class Simulator:
                 for k in delivered_msgs:
                     if not delivered_msgs[k]['delivered']:
                         delivered_msgs[k]['latency'] += 1
-                        
-        
+
+
         latencies = []
         for k in delivered_msgs:
             latencies.append(delivered_msgs[k]['latency'])
-                        
+
         self.print_results(self.nproc, turn-1, latencies, (len(self.new_msgs_schedule), turn-1))
 
 
